@@ -1,4 +1,5 @@
 import os
+import time
 import streamlit as st
 import requests
 
@@ -55,3 +56,7 @@ if st.button("Delete"):
             st.error(r.json().get("detail", "Error"))
     except Exception as e:
         st.error(str(e))
+
+# Auto-refresh cada 5 segundos para mostrar cambios sin recargar manualmente
+time.sleep(5)
+st.rerun()
