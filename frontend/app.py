@@ -1,13 +1,10 @@
 import os
 import streamlit as st
 import requests
-from streamlit_autorefresh import st_autorefresh
 
 API_URL = os.getenv("API_URL", "http://api:8080")
 
 st.set_page_config(page_title="Node Registry nodes")
-st_autorefresh(interval=3000, key="autorefresh")
-
 st.title("Node Registry Dashboard")
 
 # Health indicator
