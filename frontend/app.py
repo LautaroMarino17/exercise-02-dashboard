@@ -1,10 +1,10 @@
 import os
-import time
 import streamlit as st
 import requests
 
 API_URL = os.getenv("API_URL", "http://api:8080")
 
+st.set_page_config(page_title="Node Registry — nodes")
 st.title("Node Registry Dashboard")
 
 # Health indicator
@@ -56,7 +56,3 @@ if st.button("Delete"):
             st.error(r.json().get("detail", "Error"))
     except Exception as e:
         st.error(str(e))
-
-# Auto-refresh cada 5 segundos para mostrar cambios sin recargar manualmente
-time.sleep(5)
-st.rerun()

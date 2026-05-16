@@ -16,19 +16,12 @@ services:
       db:
         condition: service_healthy
     env_file: .env
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\" || exit 1"]
-      interval: 10s
-      timeout: 5s
-      start_period: 15s
-      retries: 5
 
   frontend:
     build: ./frontend
     ports:
       - "8501:8501"
     depends_on:
-      api:
-        condition: service_healthy
+      - api
     environment:
       - API_URL=http://api:8080
