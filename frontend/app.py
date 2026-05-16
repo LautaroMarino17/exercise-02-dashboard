@@ -1,58 +1,89 @@
 import os
-import streamlit as st
 import requests
+from fastapi import FastAPI, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 API_URL = os.getenv("API_URL", "http://api:8080")
+app = FastAPI()
 
-st.set_page_config(page_title="Node Registry nodes")
-st.title("Node Registry Dashboard")
 
-# Health indicator
-try:
-    health = requests.get(f"{API_URL}/health", timeout=3).json()
-    st.success(f"API: {health['status']} | DB: {health['db']} | Active nodes: {health['nodes_count']}")
-except Exception:
-    st.error("API unreachable")
-
-# Node list
-st.header("Registered Nodes")
-try:
-    nodes = requests.get(f"{API_URL}/api/nodes", timeout=3).json()
-    if nodes:
-        st.table(nodes)
-    else:
-        st.info("No nodes registered yet.")
-except Exception:
-    st.error("Could not fetch nodes.")
-
-# Register form
-st.header("Register Node")
-with st.form("register"):
-    name = st.text_input("Name")
-    host = st.text_input("Host")
-    port = st.number_input("Port", min_value=1, max_value=65535, value=8080)
-    submitted = st.form_submit_button("Register")
-    if submitted:
-        try:
-            r = requests.post(f"{API_URL}/api/nodes", json={"name": name, "host": host, "port": int(port)}, timeout=3)
-            if r.status_code == 201:
-                st.success(f"Node '{name}' registered!")
-                st.rerun()
-            else:
-                st.error(r.json().get("detail", "Error"))
-        except Exception as e:
-            st.error(str(e))
-
-# Delete node
-st.header("Delete Node")
-del_name = st.text_input("Node name to delete")
-if st.button("Delete"):
+def get_nodes():
     try:
-        r = requests.delete(f"{API_URL}/api/nodes/{del_name}", timeout=3)
-        if r.status_code == 204:
-            st.success(f"Node '{del_name}' deleted.")
-            st.rerun()
-        else:
-            st.error(r.json().get("detail", "Error"))
-    except Exception as e:
-        st.error(str(e))
+        return requests.get(f"{API_URL}/api/nodes", timeout=3).json()
+    except Exception:
+        return []
+
+
+def get_health():
+    try:
+        return requests.get(f"{API_URL}/health", timeout=3).json()
+    except Exception:
+        return {"status": "error", "db": "unknown", "nodes_count": 0}
+
+
+def render(nodes, health, msg=""):
+    rows = "".join(
+        f"<tr><td>{n['name']}</td><td>{n['host']}</td><td>{n['port']}</td><td>{n['status']}</td></tr>"
+        for n in nodes
+    ) or "<tr><td colspan='4'>No nodes registered yet.</td></tr>"
+
+    color = "green" if health.get("status") == "ok" else "red"
+    msg_html = f'<p style="color:green">{msg}</p>' if msg else ""
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Node Registry nodes</title>
+</head>
+<body>
+  <h1>Node Registry Dashboard</h1>
+  <p style="color:{color}">
+    API: {health.get("status","?")} | DB: {health.get("db","?")} | Active nodes: {health.get("nodes_count",0)}
+  </p>
+  {msg_html}
+
+  <h2>Registered Nodes</h2>
+  <table border="1" cellpadding="6">
+    <tr><th>Name</th><th>Host</th><th>Port</th><th>Status</th></tr>
+    {rows}
+  </table>
+
+  <h2>Register Node</h2>
+  <form method="post" action="/register">
+    <label>Name: <input name="name" required></label><br><br>
+    <label>Host: <input name="host" required></label><br><br>
+    <label>Port: <input name="port" type="number" value="8080" min="1" max="65535" required></label><br><br>
+    <button type="submit">Register</button>
+  </form>
+
+  <h2>Delete Node</h2>
+  <form method="post" action="/delete">
+    <label>Name: <input name="name" required></label><br><br>
+    <button type="submit">Delete</button>
+  </form>
+</body>
+</html>"""
+
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    return HTMLResponse(content=render(get_nodes(), get_health()))
+
+
+@app.post("/register")
+def register(name: str = Form(...), host: str = Form(...), port: int = Form(...)):
+    try:
+        requests.post(f"{API_URL}/api/nodes", json={"name": name, "host": host, "port": port}, timeout=3)
+    except Exception:
+        pass
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/delete")
+def delete_node(name: str = Form(...)):
+    try:
+        requests.delete(f"{API_URL}/api/nodes/{name}", timeout=3)
+    except Exception:
+        pass
+    return RedirectResponse(url="/", status_code=303)
